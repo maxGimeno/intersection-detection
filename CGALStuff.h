@@ -12,6 +12,7 @@
 #include <CGAL/intersections.h>
 #include <CGAL/convex_hull_3.h>
 #include <CGAL/Polyhedron_3.h>
+#include <CGAL/Polygon_mesh_processing/intersection.h>
 
 using K = CGAL::Exact_predicates_inexact_constructions_kernel;
 typedef K::Point_3 Point_3;

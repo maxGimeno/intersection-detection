@@ -15,6 +15,7 @@
 #include <set>
 #include <tclap/CmdLine.h>
 #include <sqlite3.h>
+#include <fstream>
 
 //#define WITH_CGAL
 #ifdef WITH_CGAL
@@ -55,6 +56,10 @@ static TCLAP::ValueArg<int> nboArg("n", "number-of-convexes", "Number of convexe
 static TCLAP::ValueArg<int> nbvArg("v", "number-of-vertices", "Number of vertices per convex", false, 10, "positive integer");
 
 static TCLAP::ValueArg<float> spreadArg("p", "spread", "Maximum shift", false, 0.0, "positive real");
+
+static TCLAP::ValueArg<string> off1Arg("i", "input1", "Input OFF files to test", false,"", "path");
+static TCLAP::ValueArg<string> off2Arg("j", "input2", "Input OFF files to test", false,"", "path");
+
 
 static int gNbV(0);
 static long gNumHits(0);
@@ -159,6 +164,8 @@ bool readCommandLine(int argc, char **argv) {
     gCmdLine.add(nbvArg);
     gCmdLine.add(nboArg);
     gCmdLine.add(spreadArg);
+    gCmdLine.add(off1Arg);
+    gCmdLine.add(off2Arg);
     gCmdLine.parse(argc, argv);
 
     if( spreadArg.getValue() < 0.0f )
@@ -174,7 +181,13 @@ bool readCommandLine(int argc, char **argv) {
 
     if( generalArg.getValue() && algoArg.getValue() == "naive" && nbvArg.getValue() > 1000 )
       throw TCLAP::ArgException("bad value", "too many vertices. Will segfault by filling the stack.");
-
+    
+    if(
+       (off1Arg.getValue().length() > 0 && off2Arg.getValue().length() ==0)
+       || (off2Arg.getValue().length() > 0 && off1Arg.getValue().length() ==0))
+    {
+      throw TCLAP::ArgException("bad value", "There must be 2 or no input off.");
+    }
     return false;
   }
   catch (const TCLAP::ArgException & e)
@@ -842,6 +855,51 @@ bool testDisjoint<SortedVertices>(const SortedVertices & a, const SortedVertices
 
 // =============================================================
 
+Vec3f getCenter(Polyhedron_3 & poly)
+{
+  Vec3f avg;
+  for( auto v = poly.vertices_begin(); v != poly.vertices_end(); ++v ) {
+    const Point_3 & p = v->point();
+    avg = avg + Vec3f(p.x(), p.y(), p.z());
+  }
+  avg = (1.0f/num_vertices(poly)) * avg;
+  return avg;
+}
+
+int test_CGAL(const char *off1,
+               const char *off2)
+{
+  Polyhedron_3 a,b;
+  std::ifstream i1(off1);
+  std::ifstream i2(off2);
+  i1 >> a;
+  i2 >> b;
+  i1.close();
+  i2.close();
+  
+  FullConvex c1(a),
+      c2(b);
+  c1.center_ = getCenter(a);
+  c2.center_ = getCenter(b);
+  bool res = !testDisjoint(c1, c2);
+  if(CGAL::Polygon_mesh_processing::do_intersect(a, b,
+                                                 CGAL::parameters::do_overlap_test_of_bounded_sides(true),
+                                                 CGAL::parameters::do_overlap_test_of_bounded_sides(true))
+     != res)
+  {
+    cerr << "CGAL PMP disagrees. " << endl;
+    return 1;
+  }
+  else
+  {
+    if(res)
+      cout << "They do intersect." <<endl;
+    else
+      cout << "They don't intersect." << endl;
+    return 0;
+  }
+}
+
 template< typename Convex >
 void test_general(const int N, const int nbv) {
 
@@ -1329,7 +1387,11 @@ int main(int argc, char **argv) {
     exit(-1);
 
   openDatabase();
-
+  if(off1Arg.getValue().length() > 0)
+  {
+    return test_CGAL(off1Arg.getValue().c_str(), 
+              off2Arg.getValue().c_str());
+  }
   if( generalArg.getValue() ) {
     if( algoArg.getValue() == "naive" )
       test_general<FullConvex>(nboArg.getValue(), nbvArg.getValue());

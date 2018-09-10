@@ -20,7 +20,7 @@ set(LIBS ${LIBS} "-lsqlite3" "-lmpfr" "-lgmp")
 find_package(CGAL)
 
 if (CGAL_FOUND)
-  include_directories(${CGAL_INCLUDE_DIRS})
+    include( ${CGAL_USE_FILE} )
 
   set(TET_SOURCES
     convexes.cpp
